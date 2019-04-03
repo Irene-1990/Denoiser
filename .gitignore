@@ -1,0 +1,29 @@
+#ignore all target directories
+build/
+related_work
+#ignore all files ending with ~
+*~
+.DS_Store
+#ignore backup files
+*.bk
+*_bk
+#ignore qt creator files
+qt_build/
+CMakeLists.txt.user
+#ignore all latex generated files
+*.pdf
+*.dvi 
+*.log
+*.ind
+*.aux
+*.toc
+*.syn
+*.idx
+*.out
+*.ilg
+*.pla
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+auto/

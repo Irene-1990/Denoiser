@@ -80,7 +80,7 @@ void process(int argc, char *argv[])
 {
     auto model_name = string(argv[2]);
     model_name = model_name.substr(0, model_name.length() - 4);
-    std::ofstream output(model_name + string(".out"), std::ios::app);
+    std::ofstream output(model_name+"_method"+argv[1]+string(".out"));
     DataManager data;
     ParameterSet param_denoiser;
     // Add noise to model and export it
@@ -96,6 +96,9 @@ void process(int argc, char *argv[])
     auto er = estimateMSAE(data);
     // export the denoised model.
     data.ExportMeshToFile(model_name + "(" + argv[1] + argv[3]  + ").obj");
+    for (int i = 3; i < argc; ++i) // output parameters 
+        output << argv[i] << ' ';
+    output << "\n";
     output << er.first << " " << er.second <<  " " << duration << " " ;
     duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg).count();
     output.close();
