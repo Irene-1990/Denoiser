@@ -1,4 +1,7 @@
+#include<iostream>
 #include "parameterset.h"
+
+using namespace std;
 
 ParameterSet::ParameterSet()
 {
@@ -87,5 +90,18 @@ void ParameterSet::addParameter(const string &_name, double _defaultValue)
     double_dict.insert(std::make_pair(_name, _defaultValue));
 }
 
+bool ParameterSet::hasParameter(const string &_name) const {
+  if (type_dict.end() != type_dict.find(_name))
+    return true;
+  return false;
+}
 
-
+void ParameterSet::print() const {
+  for (auto itr = bool_dict.begin(); itr != bool_dict.end(); ++itr)
+    cout << itr->first << " " << itr->second << endl;
+  for (auto itr = int_dict.begin(); itr != int_dict.end(); ++itr)
+    cout << itr->first << " " << itr->second << endl;
+  for (auto itr = double_dict.begin(); itr != double_dict.end(); ++itr)
+    cout << itr->first << " " << itr->second << endl;
+           
+}
