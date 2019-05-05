@@ -101,7 +101,8 @@ int process(int argc, char **argv, ptree &pt) {
   const int method_id = pt.get<int>("method.value");//stoi(argv[1]);
   pt.put("input.desc", "input obj file");
   const string model_file = pt.get<string>("input.value");//argv[2];
-  auto model_name = model_file.substr(0, model_file.length() - 4); // assume the file end with .obj
+  auto model_name = model_file.substr(model_file.find_last_of('/')+1, model_file.length() - 4); // assume the file end with .obj
+  const string outdir = zjucad::get_ptree_item(pt, "outdir", "output directory", string(""));
   
   DataManager data;
   data.ImportMeshFromFile(model_file);
@@ -114,28 +115,19 @@ int process(int argc, char **argv, ptree &pt) {
     ParameterSet param_noise;
     Noise noiser(&data, &param_noise);
     
-    pt.put("noise_type.desc", "noise type (gaussian 0)");
-    if (!zjucad::has("noise_type.value", pt))
-      pt.put("noise_type.value", 0);
-    const int noise_type = pt.get<int>("noise_type.value"); //stoi(argv[3])
+    const int noise_type = zjucad::get_ptree_item(pt, "noise_type", "noise type (gaussian 0)",  0);
     param_noise.setValue(string("Noise type"), noise_type);
-    
-    pt.put("noise_direction.desc", "noise direction (normal 0, random 1)");
-    if (!zjucad::has("noise_direction.value", pt))
-      pt.put("noise_direction.value", 1);
-    const int noise_direction = pt.get<int>("noise_direction.value"); //stoi(argv[4])
+    const int noise_direction = zjucad::get_ptree_item(pt, "noise_direction", "noise direction (normal 0, random 1)", 1);
     param_noise.setValue(string("Noise direction"), noise_direction);
-
     pt.put("noise_level.desc", "noise level (0.1~1.0)");
     param_noise.setValue(string("Noise level"), pt.get<double>("noise_level.value")); //stod(argv[5])
-    
     param_noise.setValue(string("Impulsive level"), 0.0);
     
     noiser.addNoise();
     param_noise.print();
 
     char file_name[100];
-    sprintf(file_name, "%s_%s_%s_Level_%.2f.obj", model_name.c_str(),
+    sprintf(file_name, "%s%s_%s_%s_Level_%.2f.obj", outdir.c_str(), model_name.c_str(),
             ((0 == noise_type)? "Gaussian" :"Other"),
             ((0 == noise_direction)? "Normal":"Random"),
             pt.get<double>("noise_level.value"));
@@ -157,7 +149,7 @@ int process(int argc, char **argv, ptree &pt) {
     auto er = estimateMSAE(data);
     // export the denoised model.
     char file_name[100];
-    sprintf(file_name, "%s_method_%d.obj", model_name.c_str(), method_id);
+    sprintf(file_name, "%s%s_method_%d.obj", outdir.c_str(), model_name.c_str(), method_id);
     // data.ExportMeshToFile(model_name + "_" + string(method_id) + ".obj");
     data.ExportMeshToFile(file_name);
     cerr << "# [info] write file: " << file_name << endl;
@@ -165,7 +157,7 @@ int process(int argc, char **argv, ptree &pt) {
     pt.put("time.desc", "time");
     pt.put("time.value", duration);
     // export measurement
-    sprintf(file_name, "%s_method_%d.out", model_name.c_str(), method_id);
+    sprintf(file_name, "%s%s_method_%d.out", outdir.c_str(), model_name.c_str(), method_id);
     std::ofstream output(file_name);
     for (ptree::const_iterator it = pt.begin(); it != pt.end(); ++it) {
       const string desc_path = it->first.data();
@@ -221,8 +213,8 @@ int denoise(DataManager *data, int argc, char *argv[], ptree &pt)
         parameters.setValue(string("Denoise Type"), denoise_type);
         const int face_neighbor = zjucad::get_ptree_item(pt, "face_neighbor", "vertex based 0, edge based 1", 0);
         parameters.setValue(string("Face Neighbor"),  face_neighbor);
-        const double sigma_c = zjucad::get_ptree_item(pt, "sigma_c", "sigma c multiplier, 0.4-1.0", 1.0);
-        parameters.setValue(string("Multiple(* sigma_c)"), sigma_c);
+        const double mu_sigma_c = zjucad::get_ptree_item(pt, "mu_sigma_c", "sigma c multiplier, 0.4-1.0", 1.0);
+        parameters.setValue(string("Multiple(* sigma_c)"), mu_sigma_c);
         const double sigma_s = zjucad::get_ptree_item(pt, "sigma_s", "sigma s, 0.1-0.6", 0.35);
         parameters.setValue(string("sigma_s"), sigma_s);
         const int normal_iteration_num = zjucad::get_ptree_item(pt, "normal_iteration_num", "normal iteration number", 20);
@@ -238,14 +230,14 @@ int denoise(DataManager *data, int argc, char *argv[], ptree &pt)
     case 3:
       {
         FastAndEffectiveFeaturePreservingMeshDenoising denoiser(data, &parameters);
-        if (7 != argc) {
-          cerr << "# [info ] Usage: ./denoiser 3 input.obj face_neighbor threshold_T normal_iteration vertex_iteration" <<endl;
-          return __LINE__;
-        }
-        parameters.setValue(string("Face Neighbor"), std::stoi(argv[3]));
-        parameters.setValue(string("Threshold T"), std::stod(argv[4]));
-        parameters.setValue(string("Normal Iteration Num."), std::stoi(argv[5]));
-        parameters.setValue(string("Vertex Iteration Num."), std::stoi(argv[6]));
+        const int face_neighbor = zjucad::get_ptree_item(pt, "face_neighbor", "vertex based 0, edge based 1", 0);
+        parameters.setValue(string("Face Neighbor"), face_neighbor);
+        const double thd_T = zjucad::get_ptree_item(pt, "thd_T", "Threshold to compare normal", 0.5);
+        parameters.setValue(string("Threshold T"), thd_T);
+        const int normal_iteration_num = zjucad::get_ptree_item(pt, "normal_iteration_num", "normal iteration number", 20);
+        parameters.setValue(string("Normal Iteration Num."), normal_iteration_num);
+        const int vertex_iteration_num = zjucad::get_ptree_item(pt, "vertex_iteration_num", "vertex iteration number", 50);
+        parameters.setValue(string("Vertex Iteration Num."), vertex_iteration_num);
         cerr << "# [info] denoise method: Fast And Effective Feature Preserving" << endl;
         denoiser.denoise();
       }
@@ -253,14 +245,14 @@ int denoise(DataManager *data, int argc, char *argv[], ptree &pt)
     case 4:
       {
         MeshDenoisingViaL0Minimization denoiser(data, &parameters);
-        if (7 != argc){
-          cerr <<" # [info] Usage: ./denoiser 4 input.obj mu_beta beta beta_max mu_alpha" << endl;
-          return __LINE__;
-        }
-        parameters.setValue(string("mu_beta"), std::stod(argv[3]));
-        parameters.setValue(string("beta"), std::stod(argv[4]));
-        parameters.setValue(string("beta_max"), std::stod(argv[5]));
-        parameters.setValue(string("mu_alpha"), std::stod(argv[6]));
+        const double mu_beta = zjucad::get_ptree_item(pt, "mu_beta", "beta multiplier", 1.414);
+        parameters.setValue(string("mu_beta"), mu_beta);
+        const double beta = zjucad::get_ptree_item(pt, "beta", "beta", 0.001);
+        parameters.setValue(string("beta"), beta);
+        const double max_beta = zjucad::get_ptree_item(pt, "max_beta", "max beta", 1000.0);
+        parameters.setValue(string("beta_max"), max_beta);
+        const double mu_alpha = zjucad::get_ptree_item(pt, "mu_alpha", "alpha multiplier", 0.5);
+        parameters.setValue(string("mu_alpha"), mu_alpha);
         cerr << "# [info] denoise method: Mesh Denoising Via L0 Minimization" << endl;
         denoiser.denoise();
       }
@@ -268,12 +260,10 @@ int denoise(DataManager *data, int argc, char *argv[], ptree &pt)
     case 5:
       {
         NonIterativeFeaturePreservingMeshFiltering denoiser(data, &parameters);
-        if (5 != argc) {
-          cerr << "# [info] Usage: ./denoiser 5 input.obj sigma_f sigma_g" << endl;
-          return __LINE__;
-        }
-        parameters.setValue(string("sigma_f/mean_edge_length"), std::stod(argv[3]));
-        parameters.setValue(string("sigma_g/mean_edge_length"), std::stod(argv[4]));
+        const double mu_sigma_f = zjucad::get_ptree_item(pt, "mu_sigma_f", "sigma_f/mean edge length", 1.0);
+        parameters.setValue(string("sigma_f/mean_edge_length"), mu_sigma_f);
+        const double mu_sigma_g = zjucad::get_ptree_item(pt, "mu_sigma_g", "sigma_g/mean edge length", 1.0);
+        parameters.setValue(string("sigma_g/mean_edge_length"), mu_sigma_g);
         cerr << "# [info] denoise method: Non Iterative Feature Preserving" << endl;
         denoiser.denoise();
       }
