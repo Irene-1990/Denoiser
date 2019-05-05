@@ -453,4 +453,5 @@ add_executable(denoiser
         OpenMesh/Core/Utils/vector_cast.hh
         OpenMesh/Core/Utils/vector_traits.hh
         denoiser.h
+	ptree.cpp
         main.cpp)

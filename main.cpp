@@ -6,15 +6,19 @@
 #include <iostream>
 #include <fstream>
 #include <chrono>
+#include<boost/property_tree/ptree.hpp>
+#include <boost/property_tree/ini_parser.hpp>
+#include"ptree.h"
 
 using namespace std;
+using boost::property_tree::ptree;
 using std::string;
 using std::vector;
 using Error = std::pair<double, double>;
 
 // void addNoise(DataManager *data, double noise_level);
-int denoise(DataManager *data, int argc, char *argv[]);
-int process(int argc, char *argv[]);
+int denoise(DataManager *data, int argc, char *argv[], ptree &pt);
+int process(int argc, char **argv, ptree &pt);
 Error estimateMSAE(DataManager &data);
 template<typename T, typename U, class ...Types>
 void setParameters(ParameterSet *param, T name, U value, Types... rest);
@@ -26,10 +30,20 @@ void setParameters(ParameterSet *param, T name, U value);
 int main(int argc, char *argv[])
 {
   //QCoreApplication a(argc, argv);
-  if (0 != process(argc, argv))
-    cout << "# [error] mission failed" << endl;
-  else 
-    cout << "# [info] mission accomplished" << endl;
+
+  ptree pt;
+  try {
+    zjucad::read_cmdline(argc, argv, pt); 
+    if (0 != process(argc, argv, pt))
+      cout << "# [error] mission failed" << endl;
+    else 
+      cout << "# [info] mission accomplished" << endl;
+  } catch (const boost::property_tree::ptree_error &e) {
+    cerr << "Usage: " << endl;
+    zjucad::show_usage_info(cerr, pt);
+  } catch (const exception &e) {
+    cerr << "# " << e.what() << endl;
+  }
   return 0;
 }
 
@@ -82,30 +96,49 @@ Error estimateMSAE(DataManager &data)
 }
 
 
-int process(int argc, char *argv[]) {
-  const int method_id = stoi(argv[1]);
-  const string model_file = argv[2];
+int process(int argc, char **argv, ptree &pt) {
+  pt.put("method.desc", "method type");
+  const int method_id = pt.get<int>("method.value");//stoi(argv[1]);
+  pt.put("input.desc", "input obj file");
+  const string model_file = pt.get<string>("input.value");//argv[2];
   auto model_name = model_file.substr(0, model_file.length() - 4); // assume the file end with .obj
   
   DataManager data;
   data.ImportMeshFromFile(model_file);
   
   if (0 == method_id) { // add noise
-    if (6 != argc) {
-      cerr << "# [error] Usage: ./denoiser 0 input.obj noise_type noise_direction noise_level" << endl;
-      return __LINE__;
-    }
+    // if (6 != argc) {
+    //   cerr << "# [error] Usage: ./denoiser 0 input.obj noise_type noise_direction noise_level" << endl;
+    //   return __LINE__;
+    // }
     ParameterSet param_noise;
     Noise noiser(&data, &param_noise);
-    param_noise.setValue(string("Noise type"), stoi(argv[3]));
-    param_noise.setValue(string("Noise direction"), stoi(argv[4]));
-    param_noise.setValue(string("Noise level"), stod(argv[5]));
+    
+    pt.put("noise_type.desc", "noise type (gaussian 0)");
+    if (!zjucad::has("noise_type.value", pt))
+      pt.put("noise_type.value", 0);
+    const int noise_type = pt.get<int>("noise_type.value"); //stoi(argv[3])
+    param_noise.setValue(string("Noise type"), noise_type);
+    
+    pt.put("noise_direction.desc", "noise direction (normal 0, random 1)");
+    if (!zjucad::has("noise_direction.value", pt))
+      pt.put("noise_direction.value", 1);
+    const int noise_direction = pt.get<int>("noise_direction.value"); //stoi(argv[4])
+    param_noise.setValue(string("Noise direction"), noise_direction);
+
+    pt.put("noise_level.desc", "noise level (0.1~1.0)");
+    param_noise.setValue(string("Noise level"), pt.get<double>("noise_level.value")); //stod(argv[5])
+    
     param_noise.setValue(string("Impulsive level"), 0.0);
+    
     noiser.addNoise();
     param_noise.print();
 
     char file_name[100];
-    sprintf(file_name, "%s_type_%s_direct_%s_level_%s.obj", model_name.c_str(), argv[3], argv[4], argv[5]);
+    sprintf(file_name, "%s_%s_%s_Level_%.2f.obj", model_name.c_str(),
+            ((0 == noise_type)? "Gaussian" :"Other"),
+            ((0 == noise_direction)? "Normal":"Random"),
+            pt.get<double>("noise_level.value"));
     // string file_name = model_name + "_noise_" + "direct_" + argv[3]  + ".obj";
     data.ExportMeshToFile(file_name);
     cerr << "# [info] write file: " << file_name << endl;
@@ -113,12 +146,13 @@ int process(int argc, char *argv[]) {
     
     // auto beg = std::chrono::high_resolution_clock::now();
     auto beg = clock();
-    if (0 != denoise(&data, argc, argv))
+    if (0 != denoise(&data, argc, argv, pt))
       return __LINE__;
     // auto end = std::chrono::high_resolution_clock::now();
     auto end = clock();
     // auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg).count();
     double duration = (end-beg)*1.0/CLOCKS_PER_SEC;
+    cerr << "# [info] computation time: " << duration << "s" << endl; 
     
     auto er = estimateMSAE(data);
     // export the denoised model.
@@ -128,18 +162,27 @@ int process(int argc, char *argv[]) {
     data.ExportMeshToFile(file_name);
     cerr << "# [info] write file: " << file_name << endl;
 
+    pt.put("time.desc", "time");
+    pt.put("time.value", duration);
     // export measurement
-
     sprintf(file_name, "%s_method_%d.out", model_name.c_str(), method_id);
     std::ofstream output(file_name);
-    output << "params: "; 
-    for (int i = 3; i < argc; ++i) // output parameters 
-      output << argv[i] << ' ';
-    output << "\n";
-    output << "Time: " << duration << endl;
-    // output << er.first << " " << er.second <<  " " << duration << endl;;
-    // duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg).count();
-    output.close();
+    for (ptree::const_iterator it = pt.begin(); it != pt.end(); ++it) {
+      const string desc_path = it->first.data();
+      output << desc_path << ": " << pt.get<string>(desc_path+".value") << endl;
+    }
+    // boost::property_tree::write_ini(file_name, pt);
+    if (0) {
+      std::ofstream output(file_name);
+      output << "params: "; 
+      for (int i = 3; i < argc; ++i) // output parameters 
+        output << argv[i] << ' ';
+      output << "\n";
+      output << "Time: " << duration << endl;
+      // output << er.first << " " << er.second <<  " " << duration << endl;;
+      // duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg).count();
+      output.close();
+    }
     cerr << "# [info] write file: " << file_name << endl;
   }
   return 0;
@@ -155,19 +198,18 @@ int process(int argc, char *argv[]) {
 //   return ;
 // }
 
-int denoise(DataManager *data, int argc, char *argv[])
+
+int denoise(DataManager *data, int argc, char *argv[], ptree &pt)
 {
-  int denoiser_type = std::stoi(argv[1]);
+  const int denoiser_type = pt.get<int>("method.value");
+  // int denoiser_type = std::stoi(argv[1]);
   ParameterSet parameters;
   switch(denoiser_type){
     case 1:
       {
-        if (4 != argc) {
-          cerr << "# [info] Usage: ./denoiser 1 input.obj iteration_num" << endl;
-          return __LINE__;
-        }
         BilateralMeshDenoising denoiser(data, &parameters);
-        parameters.setValue("Iteration Num.", std::stoi(argv[3]));
+        const int iteration_num = zjucad::get_ptree_item(pt, "iteration_num", "iteration number", 3);
+        parameters.setValue("Iteration Num.", iteration_num); //std::stoi(argv[3])
         cerr << "# [info] denoise method: Bilateral Filtering" << endl;
         denoiser.denoise();
       }
@@ -175,17 +217,20 @@ int denoise(DataManager *data, int argc, char *argv[])
     case 2:
       {
         BilateralNormalFilteringForMeshDenoising denoiser(data, &parameters);
-        if (10 != argc) {
-          cerr << "# [info] Usage: ./denoiser 2 input.obj denoise_type face_neighbor sigma_c_multipler sigma_s normal_iteration smoothness vertex_iteration" << endl;
-          return __LINE__;
-        }
-        parameters.setValue(string("Denoise Type"), std::stoi(argv[3]));
-        parameters.setValue(string("Face Neighbor"),  std::stoi(argv[4]));
-        parameters.setValue(string("Multiple(* sigma_c)"), std::stod(argv[5]));
-        parameters.setValue(string("sigma_s"), std::stod(argv[6]));
-        parameters.setValue(string("Normal Iteration Num."), std::stoi(argv[7]));
-        parameters.setValue(string("Smoothness"), std::stod(argv[8]));
-        parameters.setValue(string("Vertex Iteration Num."), std::stoi(argv[9]));
+        const int denoise_type = zjucad::get_ptree_item(pt, "denoise_type", "local 0, global 1", 0);
+        parameters.setValue(string("Denoise Type"), denoise_type);
+        const int face_neighbor = zjucad::get_ptree_item(pt, "face_neighbor", "vertex based 0, edge based 1", 0);
+        parameters.setValue(string("Face Neighbor"),  face_neighbor);
+        const double sigma_c = zjucad::get_ptree_item(pt, "sigma_c", "sigma c multiplier, 0.4-1.0", 1.0);
+        parameters.setValue(string("Multiple(* sigma_c)"), sigma_c);
+        const double sigma_s = zjucad::get_ptree_item(pt, "sigma_s", "sigma s, 0.1-0.6", 0.35);
+        parameters.setValue(string("sigma_s"), sigma_s);
+        const int normal_iteration_num = zjucad::get_ptree_item(pt, "normal_iteration_num", "normal iteration number", 20);
+        parameters.setValue(string("Normal Iteration Num."), normal_iteration_num);
+        const double smoothness = zjucad::get_ptree_item(pt, "smoothness", "smoothness", 0.01);
+        parameters.setValue(string("Smoothness"), smoothness);
+        const int vertex_iteration_num = zjucad::get_ptree_item(pt, "vertex_iteration_num", "vertex iteration number", 10);
+        parameters.setValue(string("Vertex Iteration Num."), vertex_iteration_num);
         cerr << "# [info] denoise method: Bilateral Normal Filtering" << endl;
         denoiser.denoise();
       }
