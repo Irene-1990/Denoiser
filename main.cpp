@@ -20,6 +20,8 @@ void setParameters(ParameterSet *param, T name, U value, Types... rest);
 template<typename T, typename U>
 void setParameters(ParameterSet *param, T name, U value);
 
+
+//---------------------------------------------------------------------------------------------------
 int main(int argc, char *argv[])
 {
     //QCoreApplication a(argc, argv);
@@ -130,16 +132,32 @@ void denoise(DataManager *data, int argc, char *argv[])
         break;
     case 1:
     {
-        BilateralNormalFilteringForMeshDenoising denoiser(data, &parameters);
-        if(argc > 3)
-            parameters.setValue(string("sigma_s"), std::stod(argv[3]));
-        if(argc > 4)
-            parameters.setValue(string("Normal Iteration Num."), std::stoi(argv[4]));
-        if(argc > 5)
-            parameters.setValue(string("Smoothness"), std::stod(argv[5]));
-        if(argc > 6)
-            parameters.setValue(string("Vertex Iteration Num."), std::stoi(argv[6]));
-        denoiser.denoise();
+      BilateralNormalFilteringForMeshDenoising denoiser(data, &parameters);
+      if(argc > 3)
+        parameters.setValue(string("Denoise Type"), std::stoi(argv[3]));
+      if(argc > 4)
+        parameters.setValue(string("Face Neighbor"),  std::stoi(argv[4]));
+      if(argc > 5)
+        parameters.setValue(string("Multiple(* sigma_c)"), std::stod(argv[5]));
+      if(argc > 6)
+        parameters.setValue(string("sigma_s"), std::stod(argv[6]));
+      if(argc > 7)
+        parameters.setValue(string("Normal Iteration Num."), std::stoi(argv[7]));
+      if(argc > 8)
+        parameters.setValue(string("Smoothness"), std::stod(argv[8]));
+      if(argc > 9)
+        parameters.setValue(string("Vertex Iteration Num."), std::stoi(argv[9]));
+      denoiser.denoise();
+        // BilateralNormalFilteringForMeshDenoising denoiser(data, &parameters);
+        // if(argc > 3)
+        //     parameters.setValue(string("sigma_s"), std::stod(argv[3]));
+        // if(argc > 4)
+        //     parameters.setValue(string("Normal Iteration Num."), std::stoi(argv[4]));
+        // if(argc > 5)
+        //     parameters.setValue(string("Smoothness"), std::stod(argv[5]));
+        // if(argc > 6)
+        //     parameters.setValue(string("Vertex Iteration Num."), std::stoi(argv[6]));
+        // denoiser.denoise();
     }
         break;
     case 2:
