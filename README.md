@@ -65,13 +65,12 @@ For example:
 * mu_sigma_f:
 * mu_sigma_g:
 
-*** GuidedMeshNormalFiltering
-Example:
+#### GuidedMeshNormalFiltering
  ./denoiser method=6 input=cylinder.obj  use_central_face=true normal_iteration_num=20 denoise_type=0 face_neighbor=0 vertex_iteration_num=10 mu_face_dist=2 mu_sigma_s=1  sigma_r=0.35 smoothness=0.01
-Parameter setting:
-mu_sigma_s:
-sigma_r:
-normal_iteration_num:
-vertex_iteration_num:
+##### Parameter setting
+* mu_sigma_s:
+* sigma_r:
+* normal_iteration_num:
+* vertex_iteration_num:
 
 
