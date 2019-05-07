@@ -268,6 +268,38 @@ int denoise(DataManager *data, int argc, char *argv[], ptree &pt)
         denoiser.denoise();
       }
       break;
+    case 6:
+      {
+        GuidedMeshNormalFiltering denoiser(data, &parameters);
+        const int denoise_type = zjucad::get_ptree_item(pt, "denoise_type", "local 0, global 1", 0);
+        parameters.setValue(string("Denoise Type"), denoise_type);
+        const int face_neighbor = zjucad::get_ptree_item(pt, "face_neighbor", "vertex based 0, edge based 1", 0);
+        parameters.setValue(string("Face Neighbor"),  face_neighbor);
+        const bool use_central_face = zjucad::get_ptree_item(pt, "use_central_face", "is central face include", true);
+        parameters.setValue(string("include central face"), use_central_face);
+        const double mu_face_dist = zjucad::get_ptree_item(pt, "mu_face_dist", "multiple average face distance", 2.0);
+        parameters.setValue(string("Multiple(* avg face dis.)"), mu_face_dist);
+        const double mu_sigma_s = zjucad::get_ptree_item(pt, "mu_sigma_s", "multiple sigma s", 1.0);
+        parameters.setValue(string("Multiple(* sigma_s)"), mu_sigma_s);
+        const double sigma_r = zjucad::get_ptree_item(pt, "sigma_r", "sigma_r", 0.35);
+        parameters.setValue(string("sigma_r"), sigma_r);
+        if (0 == denoise_type) {
+          const int normal_iteration_num = zjucad::get_ptree_item(pt, "normal_iteration_num",
+                                                                  "normal iteration number", 20);
+          parameters.setValue(string("(Local)Normal Iteration Num."), normal_iteration_num);
+        } else {
+          const int normal_iteration_num = zjucad::get_ptree_item(pt, "normal_iteration_num",
+                                                                  "normal iteration number", 1);
+          parameters.setValue(string("(Global)Normal Iteration Num."), normal_iteration_num);
+        }
+        const double smoothness = zjucad::get_ptree_item(pt, "smoothness", "smoothness", 0.01);
+        parameters.setValue(string("smoothness"), smoothness);
+        const int vertex_iteration_num = zjucad::get_ptree_item(pt, "vertex_iteration_num", "vertex iteration number", 10);
+        parameters.setValue(string("Vertex Iteration Num."), vertex_iteration_num);
+        cerr << "# [info] denoise method: Guided mesh normal Filtering" << endl;
+        denoiser.denoise();
+      }
+      break;
     default:
       return __LINE__;
   }
